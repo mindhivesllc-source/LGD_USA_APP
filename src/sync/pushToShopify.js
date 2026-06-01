@@ -13,7 +13,7 @@ async function getAccessToken() {
   }
 
   const session = await db.session.findFirst({
-    where: { shop: SHOPIFY_STORE.replace(".myshopify.com", "") },
+    where: { shop: { contains: SHOPIFY_STORE.split(".")[0] } },
     orderBy: { expires: "desc" },
   })
 
