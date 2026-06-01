@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "8590cc07c0e17a65bafc462838473da0"
+client_id = "fd53827c5003aec9984a2dcbe1dbca6e"
 application_url = "https://lgd-usa-sync-app-production.up.railway.app"
 embedded = true
 name = "lgd-jewelry-sync"
