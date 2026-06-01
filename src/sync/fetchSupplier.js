@@ -19,18 +19,25 @@ async function fetchFromSupplier(page = 1) {
   if (!response.ok) {
     throw new Error(`Supplier API error: ${response.status} ${response.statusText}`)
   }
-  return response.json()
+  const json = await response.json()
+
+  if (json.Message?.includes("rate") || json.Message?.includes("limit")) {
+    throw new Error(`Rate limited: ${json.Message}`)
+  }
+
+  return json
 }
 
 export async function fetchAllJewelry() {
   const firstPage = await fetchFromSupplier(1)
-  const totalPages = parseInt(firstPage.total_page, 10) || 1
-  const allItems = [...firstPage.data]
 
-  for (let page = 2; page <= totalPages; page++) {
-    const pageData = await fetchFromSupplier(page)
-    allItems.push(...pageData.data)
+  const items = firstPage.data || firstPage.Stock || []
+
+  if (!Array.isArray(items) || items.length === 0) {
+    const msg = firstPage.Message || "No items returned"
+    console.log("Supplier API response:", JSON.stringify(firstPage).slice(0, 200))
+    throw new Error(`Supplier returned empty: ${msg}`)
   }
 
-  return allItems
+  return items
 }
