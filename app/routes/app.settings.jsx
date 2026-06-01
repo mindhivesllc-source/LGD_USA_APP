@@ -1,4 +1,4 @@
-import { useFetcher } from "@remix-run/react"
+import { useLoaderData } from "@remix-run/react"
 import {
   Page,
   Layout,
