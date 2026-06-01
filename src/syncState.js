@@ -1,6 +1,8 @@
 export const state = {
   isRunning: false,
   lastRun: null,
+  lastAttempt: null,
+  cooldownMinutes: 15,
   totalProducts: 0,
   lastPushed: 0,
   lastFailed: 0,

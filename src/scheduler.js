@@ -2,10 +2,14 @@ import cron from "node-cron"
 import { fetchAllJewelry } from "./sync/fetchSupplier.js"
 import { mapToShopifyProduct } from "./sync/mapFields.js"
 import { pushToShopify } from "./sync/pushToShopify.js"
+import { state, updateState } from "./syncState.js"
 
 let syncCount = 0
 
 async function runSync() {
+  if (state.isRunning) return
+
+  updateState({ isRunning: true, lastAttempt: new Date().toISOString() })
   const startTime = Date.now()
   syncCount++
   console.log(`[Sync #${syncCount}] Starting...`)

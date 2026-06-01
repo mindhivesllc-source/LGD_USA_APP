@@ -45,6 +45,20 @@ export const loader = async ({ request }) => {
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request)
 
+  const cooldownMinutes = 15
+  const lastFailed = await db.syncRun.findFirst({
+    where: { status: "failed" },
+    orderBy: { startedAt: "desc" },
+  })
+
+  if (lastFailed) {
+    const elapsed = (Date.now() - new Date(lastFailed.startedAt).getTime()) / 1000 / 60
+    if (elapsed < cooldownMinutes) {
+      const wait = Math.ceil(cooldownMinutes - elapsed)
+      return { success: false, error: `Supplier API rate limit — try again in ${wait} minute${wait > 1 ? "s" : ""}` }
+    }
+  }
+
   const syncRun = await db.syncRun.create({
     data: {
       status: "running",
