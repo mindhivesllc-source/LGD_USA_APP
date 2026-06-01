@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "8590cc07c0e17a65bafc462838473da0"
-application_url = "https://example.com"
+application_url = "https://lgd-usa-sync-app-production.up.railway.app"
 embedded = true
 name = "lgd-jewelry-sync"
 
@@ -18,10 +18,10 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = ""
+scopes = "write_products,read_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://lgd-usa-sync-app-production.up.railway.app/api/auth" ]
 
 [build]
 include_config_on_deploy = true
