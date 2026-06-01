@@ -32,3 +32,15 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model SyncRun {
+  id            Int      @id @default(autoincrement())
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  status        String   @default("running")
+  totalFetched  Int      @default(0)
+  totalPushed   Int      @default(0)
+  newProducts   Int      @default(0)
+  updatedProducts Int    @default(0)
+  error         String?
+}
