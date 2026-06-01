@@ -1,4 +1,4 @@
-import { useLoaderData } from "@remix-run/react"
+import { useFetcher, useLoaderData } from "@remix-run/react"
 import {
   Page,
   Layout,
@@ -8,21 +8,50 @@ import {
   InlineStack,
   Banner,
   List,
+  Button,
+  TextField,
+  FormLayout,
+  Box,
 } from "@shopify/polaris"
 import { TitleBar } from "@shopify/app-bridge-react"
-import { authenticate } from "../shopify.server"
+import { useState } from "react"
 
-export const loader = async ({ request }) => {
-  await authenticate.admin(request)
+export const loader = async () => {
+  const { default: db } = await import("../db.server")
+  const settings = await db.setting.findMany()
+  const map = {}
+  settings.forEach((s) => (map[s.key] = s.value))
+
   return {
-    supplierBase: process.env.SUPPLIER_API_BASE || "",
+    supplierApiKey: map.SUPPLIER_API_KEY || process.env.SUPPLIER_API_KEY || "",
     syncInterval: process.env.SYNC_INTERVAL_HOURS || "6",
     shopifyAppUrl: process.env.SHOPIFY_APP_URL || "",
+    supplierBase: process.env.SUPPLIER_API_BASE || "",
   }
 }
 
+export const action = async ({ request }) => {
+  const { default: db } = await import("../db.server")
+  const formData = await request.formData()
+  const supplierApiKey = formData.get("supplierApiKey")
+
+  if (supplierApiKey) {
+    await db.setting.upsert({
+      where: { key: "SUPPLIER_API_KEY" },
+      update: { value: supplierApiKey },
+      create: { key: "SUPPLIER_API_KEY", value: supplierApiKey },
+    })
+  }
+
+  return { success: true }
+}
+
 export default function Settings() {
-  const { supplierBase, syncInterval, shopifyAppUrl } = useLoaderData()
+  const data = useLoaderData()
+  const fetcher = useFetcher()
+  const [apiKey, setApiKey] = useState(data.supplierApiKey)
+
+  const isSaved = fetcher.data?.success
 
   return (
     <Page title="Settings" subtitle="Configuration for LGD Jewelry Sync">
@@ -35,28 +64,50 @@ export default function Settings() {
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Sync Configuration</Text>
 
-                <BlockStack gap="300">
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">Sync Interval</Text>
-                    <Text as="p" variant="bodyMd">
-                      Every {syncInterval} hours (set via <code>SYNC_INTERVAL_HOURS</code> env var)
-                    </Text>
-                  </BlockStack>
+                <fetcher.Form method="post">
+                  <FormLayout>
+                    <TextField
+                      label="Supplier API Key"
+                      type="password"
+                      name="supplierApiKey"
+                      value={apiKey}
+                      onChange={setApiKey}
+                      autoComplete="off"
+                      helpText="Your LGD supplier API key. Changes take effect immediately."
+                    />
+                    <InlineStack gap="200">
+                      <Button submit variant="primary">
+                        Save API Key
+                      </Button>
+                      {isSaved && (
+                        <Text as="span" variant="bodyMd" tone="success">
+                          Saved
+                        </Text>
+                      )}
+                    </InlineStack>
+                  </FormLayout>
+                </fetcher.Form>
 
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">Supplier API</Text>
-                    <Text as="p" variant="bodyMd">{supplierBase}</Text>
+                <Box paddingBlockStart="400">
+                  <BlockStack gap="300">
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">Sync Interval</Text>
+                      <Text as="p" variant="bodyMd">Every {data.syncInterval} hours</Text>
+                    </BlockStack>
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">Supplier API Base</Text>
+                      <Text as="p" variant="bodyMd">{data.supplierBase}</Text>
+                    </BlockStack>
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">App URL</Text>
+                      <Text as="p" variant="bodyMd">{data.shopifyAppUrl}</Text>
+                    </BlockStack>
                   </BlockStack>
-
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodySm" tone="subdued">App URL</Text>
-                    <Text as="p" variant="bodyMd">{shopifyAppUrl}</Text>
-                  </BlockStack>
-                </BlockStack>
+                </Box>
 
                 <Banner tone="info">
                   <p>
-                    Environment variables are managed through Railway.
+                    Other environment variables are managed through Railway.
                     Visit the{" "}
                     <a
                       href="https://railway.com/project/9128c432-f045-491f-bfb0-8346e86e671e"
@@ -65,7 +116,7 @@ export default function Settings() {
                     >
                       Railway Dashboard
                     </a>{" "}
-                    to update credentials.
+                    to update Shopify credentials.
                   </p>
                 </Banner>
               </BlockStack>
@@ -77,9 +128,6 @@ export default function Settings() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Field Mapping</Text>
-                  <Text as="p" variant="bodyMd">
-                    These supplier fields are mapped to Shopify:
-                  </Text>
                   <List>
                     <List.Item>Stock_No → Variant SKU</List.Item>
                     <List.Item>Price → Variant Price</List.Item>
@@ -91,13 +139,10 @@ export default function Settings() {
                   </List>
                 </BlockStack>
               </Card>
-
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">Support</Text>
-                  <Text as="p" variant="bodyMd">
-                    LGD USA LLC · Theia Jewels
-                  </Text>
+                  <Text as="p" variant="bodyMd">LGD USA LLC · Theia Jewels</Text>
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm">info@lgdusallc.com</Text>
                     <Text as="p" variant="bodySm">+1-212-921-0118</Text>

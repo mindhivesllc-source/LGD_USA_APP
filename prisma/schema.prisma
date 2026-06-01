@@ -44,3 +44,8 @@ model SyncRun {
   updatedProducts Int    @default(0)
   error         String?
 }
+
+model Setting {
+  key   String @id
+  value String
+}

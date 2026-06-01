@@ -1,8 +1,20 @@
+import { PrismaClient } from "@prisma/client"
+
+const db = new PrismaClient()
 const SUPPLIER_API_BASE = process.env.SUPPLIER_API_BASE || "https://lgdusallc.com/developer-api"
-const SUPPLIER_API_KEY = process.env.SUPPLIER_API_KEY
+
+async function getApiKey() {
+  try {
+    const setting = await db.setting.findUnique({ where: { key: "SUPPLIER_API_KEY" } })
+    return setting?.value || process.env.SUPPLIER_API_KEY
+  } catch {
+    return process.env.SUPPLIER_API_KEY
+  }
+}
 
 async function fetchFromSupplier(page = 1) {
-  const url = `${SUPPLIER_API_BASE}/jewelry?type=all&page=${page}&key=${SUPPLIER_API_KEY}`
+  const apiKey = await getApiKey()
+  const url = `${SUPPLIER_API_BASE}/jewelry?type=all&page=${page}&key=${apiKey}`
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`Supplier API error: ${response.status} ${response.statusText}`)
