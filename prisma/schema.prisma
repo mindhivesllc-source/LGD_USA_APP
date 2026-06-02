@@ -10,7 +10,7 @@ generator client {
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "sqlite"
-  url      = "file:dev.sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -48,4 +48,10 @@ model SyncRun {
 model Setting {
   key   String @id
   value String
+}
+
+model ManualEdit {
+  sku        String   @id
+  productGid String?
+  editedAt   DateTime @default(now())
 }

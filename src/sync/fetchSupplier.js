@@ -4,12 +4,11 @@ const db = new PrismaClient()
 const SUPPLIER_API_BASE = process.env.SUPPLIER_API_BASE || "https://lgdusallc.com/developer-api"
 
 async function getApiKey() {
-  try {
-    const setting = await db.setting.findUnique({ where: { key: "SUPPLIER_API_KEY" } })
-    return setting?.value || process.env.SUPPLIER_API_KEY
-  } catch {
-    return process.env.SUPPLIER_API_KEY
+  const setting = await db.setting.findUnique({ where: { key: "SUPPLIER_API_KEY" } })
+  if (!setting?.value) {
+    throw new Error("SUPPLIER_API_KEY not found in settings. Please configure in app settings.")
   }
+  return setting.value
 }
 
 async function fetchFromSupplier(page = 1) {
@@ -22,7 +21,9 @@ async function fetchFromSupplier(page = 1) {
   const json = await response.json()
 
   if (json.Message?.includes("rate") || json.Message?.includes("limit")) {
-    throw new Error(`Rate limited: ${json.Message}`)
+    const rateErr = new Error(`Rate limited: ${json.Message}`)
+    rateErr.code = "SUPPLIER_RATE_LIMITED"
+    throw rateErr
   }
 
   return json

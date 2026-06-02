@@ -16,12 +16,49 @@ api_version = "2026-07"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/products_update"
+  topics = [ "products/update" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_product_feeds,write_product_feeds,read_product_listings,write_product_listings,read_products,write_products"
+scopes = "read_product_feeds,write_product_feeds,read_product_listings,write_product_listings,read_products,write_products,read_locations,read_inventory,write_inventory"
+
+[app_metafields]
+namespace = "lgd"
+
+[app_metafields.product.metafields.total_ct_wt]
+name = "Total Diamond Weight"
+type = "single_line_text_field"
+access = { admin = "read_write" }
+
+[app_metafields.product.metafields.video_url]
+name = "Video URL"
+type = "url"
+access = { admin = "read_write" }
+
+[app_metafields.product.metafields.gross_wt]
+name = "Gross Weight"
+type = "single_line_text_field"
+access = { admin = "read_write" }
+
+[app_metafields.product.metafields.setting]
+name = "Setting Type"
+type = "single_line_text_field"
+access = { admin = "read_write" }
+
+[app_metafields.product.metafields.diamond_pcs]
+name = "Diamond Pieces"
+type = "single_line_text_field"
+access = { admin = "read_write" }
+
+[app_metafields.product.metafields.certificate]
+name = "Certificate"
+type = "single_line_text_field"
+access = { admin = "read_write" }
 
 [auth]
-redirect_urls = [ "https://lgd-usa-sync-app-production.up.railway.app/api/auth" ]
+redirect_urls = [ "https://lgd-usa-sync-app-production.up.railway.app/auth/callback" ]
 
 [build]
 include_config_on_deploy = true

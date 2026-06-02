@@ -4,7 +4,6 @@ export function mapToShopifyProduct(item) {
   const sku = item.Stock_No || item.sku || ""
   const title = item.Remarks || item.title || ""
   const price = item.Price || item.price || "0"
-  const jewelryType = item.Jewelry_Type || item.jewelry_type || ""
   const metalType = item.Metal_Type || item.metal_type || ""
   const color = item.Color || item.color || ""
   const clarity = item.Clarity || item.clarity || ""
@@ -22,37 +21,67 @@ export function mapToShopifyProduct(item) {
 
   const category = classifyProduct(item)
 
-  const tags = [category, metalType, color, clarity, shape, growthType].filter(Boolean).join(", ")
+  const tags = [category, metalType, color, clarity, shape, growthType].filter(Boolean)
 
   return {
-    product: {
-      title,
-      body_html: formatDescription(item),
-      vendor: "LGD USA",
-      product_type: category,
-      tags,
-      status: "active",
-      variants: [
-        {
-          sku,
-          price,
-          option1: size,
-          inventory_management: "shopify",
-          inventory_quantity: 1,
-        },
-      ],
-      images: [image1, image2].filter(Boolean).map((src, i) => ({
-        src,
-        position: i + 1,
-      })),
-    },
+    title,
+    descriptionHtml: formatDescription(item),
+    vendor: "LGD USA",
+    productType: category,
+    tags,
+    status: "ACTIVE",
+    options: [{ name: "Size", values: [{ name: size }] }],
+    variants: [
+      {
+        sku,
+        price,
+        optionValues: [{ optionName: "Size", name: size }],
+        inventoryQuantities: [{ availableQuantity: 1 }],
+        taxable: true,
+      },
+    ],
+    images: [image1, image2].filter(Boolean).map((src) => ({ src })),
     metafields: [
-      { namespace: "lgd", key: "total_ct_wt", value: totalCtWt, type: "single_line_text_field" },
-      { namespace: "lgd", key: "gross_wt", value: grossWt, type: "single_line_text_field" },
-      { namespace: "lgd", key: "setting", value: setting, type: "single_line_text_field" },
-      { namespace: "lgd", key: "diamond_pcs", value: diaPcs, type: "single_line_text_field" },
-      { namespace: "lgd", key: "certificate", value: certificate, type: "single_line_text_field" },
-      { namespace: "lgd", key: "video_url", value: videoUrl, type: "single_line_text_field" },
+      {
+        namespace: "lgd",
+        key: "total_ct_wt",
+        value: String(totalCtWt),
+        type: "single_line_text_field",
+      },
+      {
+        namespace: "lgd",
+        key: "gross_wt",
+        value: String(grossWt),
+        type: "single_line_text_field",
+      },
+      {
+        namespace: "lgd",
+        key: "setting",
+        value: setting,
+        type: "single_line_text_field",
+      },
+      {
+        namespace: "lgd",
+        key: "diamond_pcs",
+        value: String(diaPcs),
+        type: "single_line_text_field",
+      },
+      {
+        namespace: "lgd",
+        key: "certificate",
+        value: certificate,
+        type: "single_line_text_field",
+      },
+      ...(videoUrl
+        ? [
+            {
+              namespace: "lgd",
+              key: "video_url",
+              value: videoUrl,
+              type: "url",
+            },
+          ]
+        : []),
     ],
   }
 }

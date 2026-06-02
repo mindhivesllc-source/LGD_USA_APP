@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { useFetcher } from "@remix-run/react"
 import {
   Page,
-  Layout,
   Text,
   Card,
   BlockStack,
@@ -13,7 +12,6 @@ import {
   Tabs,
   Spinner,
   EmptyState,
-  Link,
 } from "@shopify/polaris"
 import { TitleBar } from "@shopify/app-bridge-react"
 import { authenticate } from "../shopify.server"
@@ -34,7 +32,7 @@ export default function Products() {
     const params = new URLSearchParams()
     if (category !== "All") params.set("category", category)
     fetcher.load(`/api/products?${params.toString()}`)
-  }, [category])
+  }, [category, fetcher])
 
   const products = fetcher.data?.products || []
   const categoryCounts = fetcher.data?.categoryCounts || {}
@@ -81,6 +79,7 @@ export default function Products() {
                           <img
                             src={product.image}
                             alt={product.title}
+                            aria-label={product.title}
                             style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 4 }}
                           />
                         )}
@@ -114,6 +113,8 @@ export default function Products() {
                             url={product.videoUrl}
                             external
                             size="slim"
+                            style={{ minHeight: "44px" }}
+                            aria-label={`Watch video for ${product.title}`}
                           >
                             Watch Video
                           </Button>
@@ -123,6 +124,8 @@ export default function Products() {
                           target="_blank"
                           variant="plain"
                           size="slim"
+                          style={{ minHeight: "44px" }}
+                          aria-label={`View ${product.title} in Shopify admin`}
                         >
                           View
                         </Button>

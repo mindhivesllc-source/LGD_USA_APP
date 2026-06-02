@@ -1,10 +1,23 @@
 import { PrismaClient } from "@prisma/client"
+import { shouldStop } from "../syncState.js"
 
 const db = new PrismaClient()
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE
+const API_VERSION = "2025-04"
+const POLL_CONCURRENCY = 20
+const FETCH_TIMEOUT_MS = 30000
 
 let cachedToken = null
 let cachedTokenExpiry = 0
+let cachedLocationId = null
+
+const MAX_AVAILABLE = 1000
+const MIN_AVAILABLE_THRESHOLD = MAX_AVAILABLE * 0.5
+const LOW_THRESHOLD = 200
+
+class SyncStopError extends Error {
+  constructor() { super("Sync stopped by user"); this.name = "SyncStopError" }
+}
 
 async function getAccessToken() {
   const now = Date.now()
@@ -26,70 +39,377 @@ async function getAccessToken() {
   return cachedToken
 }
 
-function shopifyUrl(path) {
-  return `https://${SHOPIFY_STORE}/admin/api/2024-07/${path}`
+function graphqlUrl() {
+  return `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/graphql.json`
 }
 
-async function headers() {
-  const token = await getAccessToken()
-  return {
-    "X-Shopify-Access-Token": token,
-    "Content-Type": "application/json",
-  }
-}
-
-async function shopifyFetch(path, options = {}) {
+async function graphqlRequest(query, variables) {
   const maxRetries = 5
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const res = await fetch(shopifyUrl(path), { ...options, headers: await headers() })
+    const token = await getAccessToken()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    let res
+    try {
+      res = await fetch(graphqlUrl(), {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: controller.signal,
+      })
+    } catch (err) {
+      clearTimeout(timeoutId)
+      if (err.name === "AbortError") {
+        console.warn(`[GraphQL] Request timed out after ${FETCH_TIMEOUT_MS}ms (attempt ${attempt}/${maxRetries})`)
+        continue
+      }
+      throw err
+    }
+    clearTimeout(timeoutId)
 
     if (res.status === 429) {
-      const retryAfter = res.headers.get("Retry-After") || Math.pow(2, attempt)
-      await new Promise((r) => setTimeout(r, parseInt(retryAfter, 10) * 1000))
+      const retryAfter = parseInt(res.headers.get("Retry-After") || String(Math.pow(2, attempt)), 10)
+      console.warn(`[GraphQL] Rate limited (429), retrying after ${retryAfter}s (attempt ${attempt}/${maxRetries})`)
+      await new Promise((r) => setTimeout(r, retryAfter * 1000))
       continue
     }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "")
-      throw new Error(`Shopify API error: ${res.status} ${res.statusText} - ${body.slice(0, 200)}`)
+      throw new Error(`GraphQL HTTP error: ${res.status} ${res.statusText} - ${body.slice(0, 200)}`)
     }
 
-    return res.json()
+    const result = await res.json()
+
+    if (result.errors) {
+      const fatal = result.errors.filter((e) => !(e.extensions?.code === "THROTTLED"))
+      if (fatal.length > 0) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`)
+      }
+    }
+
+    const throttle = result.extensions?.cost?.throttleStatus
+    if (throttle) {
+      console.log(
+        `[Throttle] currentlyAvailable=${throttle.currentlyAvailable} restoreRate=${throttle.restoreRate}`
+      )
+      if (throttle.currentlyAvailable < MIN_AVAILABLE_THRESHOLD) {
+        const delay = throttle.currentlyAvailable < LOW_THRESHOLD ? 500 : 200
+        await new Promise((r) => setTimeout(r, delay))
+      }
+    }
+
+    return result
   }
-  throw new Error("Max retries exceeded for Shopify API")
+  throw new Error("Max retries exceeded for Shopify GraphQL")
 }
 
-async function findProductBySku(sku) {
-  const data = await shopifyFetch(`products.json?sku=${encodeURIComponent(sku)}`)
-  return data.products?.length ? data.products[0] : null
+async function getLocationId() {
+  if (cachedLocationId) return cachedLocationId
+
+  const query = `
+    query {
+      locations(first: 1) {
+        edges {
+          node {
+            id
+          }
+        }
+      }
+    }
+  `
+
+  try {
+    const result = await graphqlRequest(query)
+    const locationId = result.data?.locations?.edges?.[0]?.node?.id
+    if (locationId) {
+      cachedLocationId = locationId
+      return cachedLocationId
+    }
+    console.warn("[Sync] No inventory location found, skipping inventory quantities")
+  } catch (err) {
+    console.warn("[Sync] Could not fetch location ID:", err.message)
+    console.warn("[Sync] Add 'read_locations' scope to access inventory locations")
+  }
+  return null
+}
+
+function buildProductSetInput(mappedData) {
+  const {
+    title,
+    descriptionHtml,
+    vendor,
+    productType,
+    tags,
+    status,
+    options,
+    variants,
+    images,
+    metafields,
+  } = mappedData
+
+  const input = {
+    title: title || "",
+    descriptionHtml: descriptionHtml || "",
+    vendor: vendor || "LGD USA",
+    productType: productType || "",
+    tags: Array.isArray(tags) ? tags : [],
+    status: status || "ACTIVE",
+    productOptions: options || [],
+  }
+
+  if (variants && variants.length > 0) {
+    input.variants = variants.map((v) => ({
+      sku: v.sku,
+      price: String(v.price),
+      optionValues: v.optionValues || [],
+      inventoryQuantities: v.inventoryQuantities || [],
+      taxable: v.taxable !== undefined ? v.taxable : true,
+    }))
+  }
+
+  if (images && images.length > 0) {
+    input.images = images
+  }
+
+  if (metafields && metafields.length > 0) {
+    input.metafields = metafields.slice(0, 25)
+  }
+
+  return input
+}
+
+const PRODUCT_SET_MUTATION = `
+  mutation productSet($input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(synchronous: $synchronous, input: $input) {
+      product {
+        id
+        title
+      }
+      productSetOperation {
+        id
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`
+
+const POLL_QUERY = `
+  query pollOperation($id: ID!) {
+    productOperation(id: $id) {
+      id
+      status
+      product {
+        id
+      }
+    }
+  }
+`
+
+function injectLocation(mappedData, locationId) {
+  if (!locationId) return
+
+  if (mappedData.variants) {
+    for (const variant of mappedData.variants) {
+      if (!variant.inventoryQuantities || variant.inventoryQuantities.length === 0) {
+        variant.inventoryQuantities = [{ availableQuantity: 1, locationId }]
+      } else {
+        for (const iq of variant.inventoryQuantities) {
+          if (!iq.locationId) iq.locationId = locationId
+        }
+      }
+    }
+  }
+  if (!mappedData.metafields) {
+    mappedData.metafields = []
+  }
+}
+
+async function execProductSet(mappedData, synchronous) {
+  const input = buildProductSetInput(mappedData)
+
+  const result = await graphqlRequest(PRODUCT_SET_MUTATION, { input, synchronous })
+
+  const userErrors = result.data?.productSet?.userErrors
+  if (userErrors && userErrors.length > 0) {
+    console.error("productSet userErrors:", JSON.stringify(userErrors))
+    throw new Error(
+      `productSet failed: ${userErrors.map((e) => `${e.field}: ${e.message}`).join(", ")}`
+    )
+  }
+
+  if (synchronous) {
+    const product = result.data?.productSet?.product
+    if (!product) {
+      throw new Error("productSet returned no product")
+    }
+    return product.id
+  }
+
+  return result.data?.productSet?.productSetOperation
+}
+
+async function pollProductSetOperation(operationId, maxWaitSec = 300) {
+  const interval = 2000
+  const maxAttempts = Math.ceil((maxWaitSec * 1000) / interval)
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await graphqlRequest(POLL_QUERY, { id: operationId })
+    const op = result.data?.productOperation
+
+    if (!op) {
+      throw new Error(`Product operation ${operationId} not found`)
+    }
+
+    if (op.status === "COMPLETE") {
+      return op.product?.id || null
+    }
+
+    if (op.status === "FAILED") {
+      throw new Error(`Product operation ${operationId} failed`)
+    }
+
+    await new Promise((r) => setTimeout(r, interval))
+  }
+
+  throw new Error(`Product operation ${operationId} timed out after ${maxWaitSec}s`)
+}
+
+function getItemSku(item) {
+  return item?.variants?.[0]?.sku || ""
+}
+
+function getItemTitle(item) {
+  return item?.title || ""
+}
+
+function isValidItem(item) {
+  return Boolean(getItemSku(item) && getItemTitle(item))
+}
+
+async function submitOne(item, synchronous = true) {
+  try {
+    if (synchronous) {
+      return await execProductSet(item, true)
+    }
+    const op = await execProductSet(item, false)
+    return op?.id || null
+  } catch (err) {
+    const sku = getItemSku(item)
+    console.error(`[Sync] Submit error for SKU ${sku}:`, err.message)
+    return null
+  }
 }
 
 export async function pushToShopify(mappedData) {
-  const { product, metafields } = mappedData
-  const sku = product.variants[0].sku
-  const existing = await findProductBySku(sku)
+  const locationId = await getLocationId()
+  injectLocation(mappedData, locationId)
+  return execProductSet(mappedData, true)
+}
 
-  let productId
-  if (existing) {
-    const data = await shopifyFetch(`products/${existing.id}.json`, {
-      method: "PUT",
-      body: JSON.stringify({ product }),
-    })
-    productId = data.product.id
-  } else {
-    const data = await shopifyFetch("products.json", {
-      method: "POST",
-      body: JSON.stringify({ product }),
-    })
-    productId = data.product.id
+export async function pushToShopifyBatch(mappedItems, { asyncThreshold = 50, maxWaitSec = 300, onProgress } = {}) {
+  const locationId = await getLocationId()
+
+  const valid = []
+  const skipped = []
+  for (const item of mappedItems) {
+    injectLocation(item, locationId)
+    if (!isValidItem(item)) {
+      skipped.push(getItemSku(item) || "<no-sku>")
+      continue
+    }
+    valid.push(item)
   }
 
-  for (const metafield of metafields) {
-    await shopifyFetch(`products/${productId}/metafields.json`, {
-      method: "POST",
-      body: JSON.stringify({ metafield }),
-    }).catch(() => {})
+  if (skipped.length > 0) {
+    console.warn(`[Sync] Skipped ${skipped.length} items with missing SKU/title`)
   }
 
-  return productId
+  if (valid.length === 0) {
+    console.warn("[Sync] No valid products to push")
+    return { pushed: 0, skipped: skipped.length, failed: 0 }
+  }
+
+  if (valid.length <= asyncThreshold) {
+    let pushed = 0
+    let failed = 0
+    let i = 0
+    console.log(`[Sync] Submitting ${valid.length} products synchronously...`)
+    for (const item of valid) {
+      i++
+      if (shouldStop()) throw new SyncStopError()
+      const result = await submitOne(item, true)
+      if (result) pushed++
+      else failed++
+      if (i % 5 === 0) {
+        console.log(`[Sync] Progress: ${i}/${valid.length} submitted`)
+        if (onProgress) onProgress({ pushed, failed, skipped: skipped.length, phase: "sync" })
+      }
+    }
+    return { pushed, skipped: skipped.length, failed }
+  }
+
+  console.log(`[Sync] Submitting ${valid.length} products in async mode...`)
+
+  const operations = []
+  let submitFailed = 0
+  let i = 0
+  for (const item of valid) {
+    i++
+    if (shouldStop()) throw new SyncStopError()
+    const opId = await submitOne(item, false)
+    if (opId) {
+      operations.push(opId)
+    } else {
+      submitFailed++
+    }
+    if (i % 10 === 0) {
+      console.log(`[Sync] Submitted ${i}/${valid.length}, got ${operations.length} operation IDs so far`)
+      if (onProgress) onProgress({ pushed: operations.length, failed: submitFailed, skipped: skipped.length, phase: "submitting" })
+    }
+  }
+
+  console.log(`[Sync] Submitted ${operations.length} async operations (${submitFailed} failed submission), polling...`)
+
+  const stats = { completed: 0, failed: submitFailed, pollCount: 0 }
+
+  const chunks = []
+  for (let c = 0; c < operations.length; c += POLL_CONCURRENCY) {
+    chunks.push(operations.slice(c, c + POLL_CONCURRENCY))
+  }
+
+  let chunkIndex = 0
+  for (const chunk of chunks) {
+    chunkIndex++
+    if (shouldStop()) throw new SyncStopError()
+    await Promise.allSettled(
+      chunk.map(async (opId) => {
+        try {
+          await pollProductSetOperation(opId, maxWaitSec)
+          stats.completed++
+        } catch (err) {
+          console.error(`[Sync] Operation ${opId} failed:`, err.message)
+          stats.failed++
+        } finally {
+          stats.pollCount++
+          if (stats.pollCount % 50 === 0) {
+            console.log(`[Sync] Polled ${stats.pollCount}/${operations.length} (${stats.completed} done)`)
+            if (onProgress) onProgress({ pushed: stats.completed, failed: stats.failed, skipped: skipped.length, phase: "polling" })
+          }
+        }
+      })
+    )
+    console.log(`[Sync] Chunk ${chunkIndex}/${chunks.length} done: ${stats.completed} succeeded, ${stats.failed} failed`)
+  }
+
+  console.log(`[Sync] Async batch complete: ${stats.completed} succeeded, ${stats.failed} failed, ${skipped.length} skipped`)
+  return { pushed: stats.completed, skipped: skipped.length, failed: stats.failed }
 }

@@ -1,15 +1,16 @@
 import cron from "node-cron"
 import { fetchAllJewelry } from "./sync/fetchSupplier.js"
 import { mapToShopifyProduct } from "./sync/mapFields.js"
-import { pushToShopify } from "./sync/pushToShopify.js"
-import { state, updateState } from "./syncState.js"
+import { pushToShopifyBatch } from "./sync/pushToShopify.js"
+import { state, updateState, setCooldown, clearCooldown, resetStop } from "./syncState.js"
 
 let syncCount = 0
 
 async function runSync() {
   if (state.isRunning) return
 
-  updateState({ isRunning: true, lastAttempt: new Date().toISOString() })
+  updateState({ isRunning: true })
+  resetStop()
   const startTime = Date.now()
   syncCount++
   console.log(`[Sync #${syncCount}] Starting...`)
@@ -29,15 +30,30 @@ async function runSync() {
     console.log(`[Sync #${syncCount}] Fetched ${items.length} products from supplier`)
 
     let pushed = 0
-    for (const item of items) {
-      try {
-        const mapped = mapToShopifyProduct(item)
-        await pushToShopify(mapped)
-        pushed++
-      } catch (err) {
-        console.error(`[Sync #${syncCount}] Error pushing ${item.Stock_No || item.sku}:`, err.message)
-      }
-    }
+    let skipped = 0
+    let failed = 0
+
+    const mappedItems = items.map((item) => mapToShopifyProduct(item))
+
+    const result = await pushToShopifyBatch(mappedItems, {
+      onProgress: async ({ pushed: p, failed: f, skipped: s }) => {
+        pushed = p
+        failed = f
+        skipped = s
+        try {
+          await db.syncRun.update({
+            where: { id: syncRun.id },
+            data: { totalPushed: p + f + s, totalFetched: items.length },
+          })
+        } catch (_) {}
+      },
+    })
+
+    pushed = result.pushed
+    skipped = result.skipped
+    failed = result.failed
+
+    console.log(`[Sync #${syncCount}] Final: ${pushed} pushed, ${failed} failed, ${skipped} skipped`)
 
     await db.syncRun.update({
       where: { id: syncRun.id },
@@ -51,17 +67,33 @@ async function runSync() {
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1)
     console.log(`[Sync #${syncCount}] Complete! ${pushed}/${items.length} products in ${duration}s`)
+    clearCooldown()
   } catch (err) {
+    const isStopped = err.name === "SyncStopError"
     await db.syncRun.update({
       where: { id: syncRun.id },
       data: {
-        status: "failed",
+        status: isStopped ? "cancelled" : "failed",
         completedAt: new Date(),
-        error: err.message,
+        error: isStopped ? "Stopped by user" : err.message,
       },
     })
-    console.error(`[Sync #${syncCount}] Failed:`, err.message)
+    if (isStopped) {
+      console.log(`[Sync #${syncCount}] Stopped by user`)
+      clearCooldown()
+    } else {
+      console.error(`[Sync #${syncCount}] Failed:`, err.message)
+      if (err.code === "SUPPLIER_RATE_LIMITED" || err.message?.includes("Rate limited")) {
+        setCooldown(15)
+        updateState({ lastError: "supplier_rate_limited" })
+      } else {
+        clearCooldown()
+        updateState({ lastError: err.message })
+      }
+    }
   } finally {
+    updateState({ isRunning: false, lastDuration: ((Date.now() - startTime) / 1000).toFixed(1) })
+    resetStop()
     await db.$disconnect()
   }
 }
@@ -72,7 +104,14 @@ export function startScheduler() {
   console.log(`Scheduler: sync every ${hours} hours (${cronExpression})`)
 
   cron.schedule(cronExpression, runSync)
-  console.log("Scheduler: cron job registered, first run on schedule")
+  console.log("Scheduler: cron job registered")
+
+  setTimeout(() => {
+    console.log("Scheduler: running initial sync on startup")
+    runSync().catch(err => console.error("Initial sync error:", err))
+  }, 5000)
+
+  console.log("Scheduler: initial sync scheduled in 5s")
 }
 
 export { runSync }
