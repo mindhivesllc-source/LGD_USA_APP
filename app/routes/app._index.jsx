@@ -140,7 +140,8 @@ export default function Dashboard() {
       const interval = setInterval(() => revalidator.revalidate(), 3000)
       return () => clearInterval(interval)
     }
-  }, [isRunning, revalidator])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning])
 
   return (
     <Frame>

@@ -32,7 +32,8 @@ export default function Products() {
     const params = new URLSearchParams()
     if (category !== "All") params.set("category", category)
     fetcher.load(`/api/products?${params.toString()}`)
-  }, [category, fetcher])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category])
 
   const products = fetcher.data?.products || []
   const categoryCounts = fetcher.data?.categoryCounts || {}
