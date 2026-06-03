@@ -36,11 +36,9 @@ export function mapToShopifyProduct(item) {
         sku,
         price,
         optionValues: [{ optionName: "Size", name: size }],
-        inventoryQuantities: [{ availableQuantity: 1 }],
         taxable: true,
       },
     ],
-    images: [image1, image2].filter(Boolean).map((src) => ({ src })),
     metafields: [
       {
         namespace: "lgd",

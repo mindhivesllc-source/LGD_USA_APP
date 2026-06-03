@@ -172,10 +172,6 @@ function buildProductSetInput(mappedData) {
     }))
   }
 
-  if (images && images.length > 0) {
-    input.images = images
-  }
-
   if (metafields && metafields.length > 0) {
     input.metafields = metafields.slice(0, 25)
   }
@@ -219,13 +215,9 @@ function injectLocation(mappedData, locationId) {
 
   if (mappedData.variants) {
     for (const variant of mappedData.variants) {
-      if (!variant.inventoryQuantities || variant.inventoryQuantities.length === 0) {
-        variant.inventoryQuantities = [{ availableQuantity: 1, locationId }]
-      } else {
-        for (const iq of variant.inventoryQuantities) {
-          if (!iq.locationId) iq.locationId = locationId
-        }
-      }
+      variant.inventoryQuantities = [
+        { name: "available", locationId, quantity: 1 },
+      ]
     }
   }
   if (!mappedData.metafields) {
