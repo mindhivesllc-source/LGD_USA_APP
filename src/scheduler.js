@@ -114,4 +114,6 @@ export function startScheduler() {
   console.log("Scheduler: initial sync scheduled in 5s")
 }
 
+startScheduler()
+
 export { runSync }
