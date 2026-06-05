@@ -1,0 +1,18 @@
+{
+  "id": "51907944-71d0-4da6-be31-fdc6010415d2",
+  "runtime": "bash",
+  "purpose": "check connectivity",
+  "script_chars": 35,
+  "started_at": "2026-06-05T20:47:14.119Z",
+  "finished_at": "2026-06-05T20:47:14.123Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 4,
+  "stdout_bytes": 29,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/home/peter/LGD_USA_APP/.gsd/exec/51907944-71d0-4da6-be31-fdc6010415d2.stdout",
+  "stderr_path": "/home/peter/LGD_USA_APP/.gsd/exec/51907944-71d0-4da6-be31-fdc6010415d2.stderr"
+}

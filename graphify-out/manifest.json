@@ -1,0 +1,294 @@
+{
+  "/home/peter/LGD_USA_APP/env.d.ts": {
+    "mtime": 1780334196.3458555,
+    "hash": "a3cbf542540be577a4c12f778765e769"
+  },
+  "/home/peter/LGD_USA_APP/vite.config.js": {
+    "mtime": 1780334196.3457334,
+    "hash": "044c0a080ce19de66780407971166fc9"
+  },
+  "/home/peter/LGD_USA_APP/remix.config.backup.js": {
+    "mtime": 1780334196.3458602,
+    "hash": "35650b422865142e4911feb764df3a36"
+  },
+  "/home/peter/LGD_USA_APP/app/db.server.js": {
+    "mtime": 1780334196.3463788,
+    "hash": "e1e1b2e2b062eb785c719662a5140181"
+  },
+  "/home/peter/LGD_USA_APP/app/entry.server.jsx": {
+    "mtime": 1780334196.346385,
+    "hash": "438dbcdc58638c5ef22d95ddf3ba9899"
+  },
+  "/home/peter/LGD_USA_APP/app/root.jsx": {
+    "mtime": 1780415105.3655844,
+    "hash": "0bd947bb5127d0c9ef50641edf06d06f"
+  },
+  "/home/peter/LGD_USA_APP/app/routes.js": {
+    "mtime": 1780334196.346377,
+    "hash": "33cc34a26dae01dc8ad43992b7075e08"
+  },
+  "/home/peter/LGD_USA_APP/app/shopify.server.js": {
+    "mtime": 1780334196.3463745,
+    "hash": "eb901ecbd84c1bce88c51f9b85283e72"
+  },
+  "/home/peter/LGD_USA_APP/app/shopify-admin-url.server.js": {
+    "mtime": 1780435122.310677,
+    "hash": "e5c3cce76586769b6bd895864e3e7704"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app._index.jsx": {
+    "mtime": 1780525516.3334136,
+    "hash": "27ad47a139f934ffb182f900ab36cbf9"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app.jsx": {
+    "mtime": 1780414971.9976668,
+    "hash": "dae8725c5bae2199a422e713e30e5e13"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/auth.$.jsx": {
+    "mtime": 1780334196.3463016,
+    "hash": "9613e825ca4a43084c33181d58d87230"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/webhooks.app.scopes_update.jsx": {
+    "mtime": 1780334196.3459697,
+    "hash": "17ae69aa593b6725ab0dad6558397791"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/webhooks.app.uninstalled.jsx": {
+    "mtime": 1780334196.3463037,
+    "hash": "b7a5e39068edc897c7f5b7340173f265"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/api.sync.jsx": {
+    "mtime": 1780419045.9547365,
+    "hash": "2fcd70ab08b9d0e84e467727006cac55"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/api.products.jsx": {
+    "mtime": 1780338007.9552038,
+    "hash": "e04ec8bfa13ea5c359d2846407be8619"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app.products.jsx": {
+    "mtime": 1780525511.2645693,
+    "hash": "31c5e00a76968c6201931db1f274f7b8"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app.settings.jsx": {
+    "mtime": 1780340002.6530898,
+    "hash": "37953671a345a7553cfd6fce4d8628b8"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/api.settings.jsx": {
+    "mtime": 1780339983.455034,
+    "hash": "7cf1c227778df6ae5c8df3c19c3d5f12"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/webhooks.app.products_update.jsx": {
+    "mtime": 1780414940.1956396,
+    "hash": "031746b4eb4ff14366b2db8006064218"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app.onboarding.jsx": {
+    "mtime": 1780435691.0583425,
+    "hash": "17cb8c74fd5e30dab5d00b9114ecc92b"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/app.privacy.jsx": {
+    "mtime": 1780414964.323902,
+    "hash": "dcd924b25c21c8f4040e5f52c3bb4b5d"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/_index/route.jsx": {
+    "mtime": 1780435416.6637056,
+    "hash": "2141722dc77c77e9db58983dda86c0f8"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/auth.login/error.server.jsx": {
+    "mtime": 1780334196.3465831,
+    "hash": "91af11db1fef253c9da46f1ea10b2c43"
+  },
+  "/home/peter/LGD_USA_APP/app/routes/auth.login/route.jsx": {
+    "mtime": 1780435416.8566997,
+    "hash": "849ffb7d09512321663b977d70df1991"
+  },
+  "/home/peter/LGD_USA_APP/prisma/migrations/20240530213853_create_session_table/migration.sql": {
+    "mtime": 1780334196.3462963,
+    "hash": "dc6477a2bc71a1c9a3a7392d0f5ffcea"
+  },
+  "/home/peter/LGD_USA_APP/prisma/migrations/20260601182035_add_sync_run/migration.sql": {
+    "mtime": 1780338035.0914178,
+    "hash": "684ac7920d8cdcedca525646cdb47b61"
+  },
+  "/home/peter/LGD_USA_APP/prisma/migrations/20260601190000_add_settings_table/migration.sql": {
+    "mtime": 1780339977.612276,
+    "hash": "0b474c68188e0ff36ebc0dd5d8f401c8"
+  },
+  "/home/peter/LGD_USA_APP/prisma/migrations/20260602154759_add_manual_edit/migration.sql": {
+    "mtime": 1780415279.7792451,
+    "hash": "a06183676b3f0c02e88ce16325ed009a"
+  },
+  "/home/peter/LGD_USA_APP/src/scheduler.js": {
+    "mtime": 1780693472.8307042,
+    "hash": "e366294f7a6e39744d38041e044ae5e4"
+  },
+  "/home/peter/LGD_USA_APP/src/index.js": {
+    "mtime": 1780335468.9601715,
+    "hash": "213c08cdce40b6ead4c586453747bd49"
+  },
+  "/home/peter/LGD_USA_APP/src/syncState.js": {
+    "mtime": 1780418943.4358497,
+    "hash": "7b418708b22b373c4f798d9c75aff206"
+  },
+  "/home/peter/LGD_USA_APP/src/sync/fetchSupplier.js": {
+    "mtime": 1780416372.304959,
+    "hash": "35d25ea21e66ef88f892f0257224fecd"
+  },
+  "/home/peter/LGD_USA_APP/src/sync/classify.js": {
+    "mtime": 1780335437.406746,
+    "hash": "b42bf44575058e6c5caadf77375ed8de"
+  },
+  "/home/peter/LGD_USA_APP/src/sync/mapFields.js": {
+    "mtime": 1780526280.522933,
+    "hash": "553327219890afef821669a29745d8ec"
+  },
+  "/home/peter/LGD_USA_APP/src/sync/pushToShopify.js": {
+    "mtime": 1780692647.506125,
+    "hash": "59ca086c8e4e8221b12041cca5d56673"
+  },
+  "/home/peter/LGD_USA_APP/APi_Docs.md": {
+    "mtime": 1780332347.0059228,
+    "hash": "3b586e4c5a329f7aefe07c156c59a57c"
+  },
+  "/home/peter/LGD_USA_APP/README.md": {
+    "mtime": 1780332819.5575755,
+    "hash": "684da9db7458d11dc44eb1d8259f2068"
+  },
+  "/home/peter/LGD_USA_APP/CHANGELOG.md": {
+    "mtime": 1780334196.3458765,
+    "hash": "b09e3b7ad5d980f6fdc533f3c65fe7ef"
+  },
+  "/home/peter/LGD_USA_APP/CLAUDE.md": {
+    "mtime": 1780521600.4116516,
+    "hash": "f4dbc294c31f5677e9aa4e8f7ad6da8e"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/FIX_ROADMAP.md": {
+    "mtime": 1780350813.6125896,
+    "hash": "fd404ee9f27aa91bd57dc019845fd0f5"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/product-api/graphql.md": {
+    "mtime": 1780350580.9256985,
+    "hash": "2e368e3f70d9185ab6c94400cb60201e"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/product-api/product-merchandising.md": {
+    "mtime": 1780350606.924904,
+    "hash": "d51c23986b985b09a2553ea79931b77c"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/product-api/metafields.md": {
+    "mtime": 1780350639.7899,
+    "hash": "08ddcfc5de68db2b6657e9eab1338fb4"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/product-api/metaobjects.md": {
+    "mtime": 1780350658.4673295,
+    "hash": "9d194d0463b8ccdfc792cf79e85f8730"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/product-api/extensions.md": {
+    "mtime": 1780350671.0749443,
+    "hash": "284780cf417b02a00da4ba8e49af40af"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/auth-webhooks/authentication.md": {
+    "mtime": 1780350584.8795776,
+    "hash": "e1d6fec4e0f30fd6ed9f849408e63484"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/auth-webhooks/webhooks.md": {
+    "mtime": 1780350620.0995016,
+    "hash": "994e7ba2dbeefa4e8f35b49abaf84f1b"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/auth-webhooks/events.md": {
+    "mtime": 1780350649.0316179,
+    "hash": "8122050dba27dfcd30baed968fe19f1a"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/auth-webhooks/integrating.md": {
+    "mtime": 1780350677.6167445,
+    "hash": "d65a6a61af691402e596b5710308327c"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/auth-webhooks/app-home.md": {
+    "mtime": 1780350704.7109168,
+    "hash": "b1080bb78a9818ed3f3df9c1e8281467"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/best-practices/performance.md": {
+    "mtime": 1780350559.435355,
+    "hash": "9f383c4d58578c89c488ae21a3d7e177"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/best-practices/security.md": {
+    "mtime": 1780350576.259841,
+    "hash": "22a7bfff9f845b9dda36151f91eafacc"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/best-practices/compliance.md": {
+    "mtime": 1780350592.9373314,
+    "hash": "6372186f09ac1a01ee9550c76ffc6426"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/best-practices/non-deceptive.md": {
+    "mtime": 1780350606.2039263,
+    "hash": "b90930e6e04ef34eabf49d1d5723093b"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/best-practices/mobile-support.md": {
+    "mtime": 1780350617.369585,
+    "hash": "24133e79c7fd5a2b44a6fa6f9ec48998"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/overview.md": {
+    "mtime": 1780350538.00001,
+    "hash": "a003ae1654fed7efe6e748b4e46adf23"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/app-structure.md": {
+    "mtime": 1780350546.3697543,
+    "hash": "ca4608476c6b6440110712f922480db1"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/layout.md": {
+    "mtime": 1780350555.2894816,
+    "hash": "87a2237e4a5030b65bb69bc7cf5f44d4"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/visual-design.md": {
+    "mtime": 1780350570.40602,
+    "hash": "7d244d10344f26c99b122c2ba5daebd5"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/navigation.md": {
+    "mtime": 1780350582.086663,
+    "hash": "8a28b769914724366db90b3e56d0d8a1"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/content.md": {
+    "mtime": 1780350590.1024182,
+    "hash": "e3f35e4f647fdb963d4f2554d0f9ea22"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/ux-alerts.md": {
+    "mtime": 1780350606.2679243,
+    "hash": "52d244f5f2b0568d1d1f9ed1de4a4f61"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/ux-app-home.md": {
+    "mtime": 1780350612.8187242,
+    "hash": "3a0136ceea48984a2b20b3511f372de8"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/ux-onboarding.md": {
+    "mtime": 1780350620.1075015,
+    "hash": "2070f986e8328205c0c6806450203f9e"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/design-ux/ux-forms.md": {
+    "mtime": 1780350630.8671727,
+    "hash": "8373220a379480725086a215dac35828"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/launch-overview.md": {
+    "mtime": 1780350566.3981423,
+    "hash": "b43cbc09b1027666ee708752a5de6246"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/built-for-shopify.md": {
+    "mtime": 1780350604.1669884,
+    "hash": "207b1d5c2706619e8152466d9efda95c"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/accessibility.md": {
+    "mtime": 1780350621.3784626,
+    "hash": "36e6dd30ca9055ea35ce5cad03bf58c8"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/localization.md": {
+    "mtime": 1780350635.3940344,
+    "hash": "2421d190c84d6b1fad08359f96bff7b5"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/scaffolding.md": {
+    "mtime": 1780350648.1606443,
+    "hash": "2b78e03833f3b7f6c342e6fc226d5e25"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/build-guide.md": {
+    "mtime": 1780350663.8701644,
+    "hash": "29f0048f7e9368695691c4cea567e39f"
+  },
+  "/home/peter/LGD_USA_APP/shopify-research/launch-store/cli-reference.md": {
+    "mtime": 1780350677.7407408,
+    "hash": "07aa4807aec8fd27ff77044b1c5110f4"
+  }
+}

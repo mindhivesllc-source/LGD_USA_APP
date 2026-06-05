@@ -32,11 +32,18 @@ async function fetchFromSupplier(page = 1) {
 export async function fetchAllJewelry() {
   const firstPage = await fetchFromSupplier(1)
 
+  // Check for API-level error messages regardless of HTTP status
+  const supplierMsg = firstPage.message || firstPage.Message || ""
+  if (supplierMsg && !Array.isArray(firstPage.data) && !Array.isArray(firstPage.Stock)) {
+    console.error("Supplier API error:", JSON.stringify(firstPage).slice(0, 500))
+    throw new Error(`Supplier error: ${supplierMsg}`)
+  }
+
   const items = firstPage.data || firstPage.Stock || []
 
   if (!Array.isArray(items) || items.length === 0) {
-    const msg = firstPage.Message || "No items returned"
-    console.log("Supplier API response:", JSON.stringify(firstPage).slice(0, 200))
+    const msg = supplierMsg || "No items returned"
+    console.error("Supplier API response:", JSON.stringify(firstPage).slice(0, 500))
     throw new Error(`Supplier returned empty: ${msg}`)
   }
 

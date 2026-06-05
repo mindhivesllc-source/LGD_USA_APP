@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',d).get('command',''))\" 2>/dev/null || true); case \"$CMD\" in *grep*|*rg\\ *|*ripgrep*|*find\\ *|*fd\\ *|*ack\\ *|*ag\\ *)   [ -f graphify-out/graph.json ] &&   echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"graphify: Knowledge graph exists. Read graphify-out/GRAPH_REPORT.md for god nodes and community structure before searching raw files.\"}}'   || true ;; esac"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"KNOWLEDGE GUARD: You are about to modify code. Confirm you have: (1) read graphify-out/GRAPH_REPORT.md, (2) queried the relevant community via graphify explain/query, (3) checked the Obsidian work log at ~/obsidian-brain/vault/Projects/LGD_USA_APP/Work Log.md for related issues, decisions, and recent sessions. If you have NOT done all three, stop and do them now before this edit proceeds.\"}}'"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"KNOWLEDGE GUARD: You are about to write/modify a file. Confirm you have: (1) read graphify-out/GRAPH_REPORT.md, (2) queried the relevant community, (3) checked the Obsidian work log for related issues/decisions/sessions. If not, stop and consult each source before writing.\"}}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',d).get('command',''))\" 2>/dev/null || true); case \"$CMD\" in *git\\ commit*) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"REMINDER: You just committed code. Run `graphify update .` to update the knowledge graph, and write a session note to ~/obsidian-brain/vault/Projects/LGD_USA_APP/sessions/ with what changed and why.\"}}' ;; *git\\ push*) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"REMINDER: You just pushed. Check Railway deploy logs via Railway MCP get_logs. If deploy fails, log error to Obsidian errors/ and Axiom.\"}}' ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}
