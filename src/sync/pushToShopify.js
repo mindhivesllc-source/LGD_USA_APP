@@ -201,7 +201,6 @@ const PRODUCT_SET_MUTATION = `
 const POLL_QUERY = `
   query pollOperation($id: ID!) {
     productOperation(id: $id) {
-      id
       status
       product {
         id
