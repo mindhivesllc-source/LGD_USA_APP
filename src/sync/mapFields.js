@@ -9,7 +9,7 @@ export function mapToShopifyProduct(item) {
   const clarity = item.Clarity || item.clarity || ""
   const shape = item.Shape || item.shape || ""
   const growthType = item.Growth_Type || item.growth_type || ""
-  const size = item.Size || item.size || ""
+  const size = item.Size || item.size || "One Size"
   const setting = item.Setting || item.setting || ""
   const totalCtWt = item.Dia_Wt || item.total_ct_wt || "0"
   const grossWt = item.gross_wt || "0"
