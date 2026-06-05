@@ -2,12 +2,18 @@ import cron from "node-cron"
 import { fetchAllJewelry } from "./sync/fetchSupplier.js"
 import { mapToShopifyProduct } from "./sync/mapFields.js"
 import { pushToShopifyBatch } from "./sync/pushToShopify.js"
-import { state, updateState, setCooldown, clearCooldown, resetStop } from "./syncState.js"
+import { state, updateState, setCooldown, clearCooldown, resetStop, isCooldownActive } from "./syncState.js"
 
 let syncCount = 0
 
 async function runSync() {
   if (state.isRunning) return
+
+  if (isCooldownActive()) {
+    const waitMinutes = Math.ceil((new Date(state.cooldownUntil).getTime() - Date.now()) / 60000)
+    console.log(`[Sync] Skipped: supplier rate limit active for ~${waitMinutes}min`)
+    return
+  }
 
   updateState({ isRunning: true })
   resetStop()
@@ -106,11 +112,38 @@ export function startScheduler() {
   cron.schedule(cronExpression, runSync)
   console.log("Scheduler: cron job registered")
 
-  setTimeout(() => {
-    console.log("Scheduler: running initial sync on startup")
-    runSync().catch(err => console.error("Initial sync error:", err))
-  }, 5000)
+  async function runWithRetry(attempt = 0) {
+    if (isCooldownActive()) {
+      const waitMinutes = Math.ceil((new Date(state.cooldownUntil).getTime() - Date.now()) / 60000)
+      if (attempt === 0) {
+        console.log(`Scheduler: supplier rate limit active, will retry in ~${waitMinutes}min`)
+      }
+      setTimeout(() => runWithRetry(attempt + 1), (waitMinutes + 1) * 60_000)
+      return
+    }
 
+    let lastErr = state.lastError
+    const runPromise = attempt === 0
+      ? (console.log("Scheduler: running initial sync on startup"), runSync())
+      : (console.log(`Scheduler: retry attempt #${attempt}`), runSync())
+
+    try {
+      await runPromise
+    } catch (err) {
+      console.error("Scheduler: retry sync error:", err.message)
+    }
+
+    // If the sync failed with a rate limit, retry after cooldown
+    const newErr = state.lastError
+    const isRateLimited = newErr === "supplier_rate_limited" || newErr?.includes?.("Rate limited")
+    if (isRateLimited) {
+      const waitMinutes = 16 // cooldown is 15min + 1min buffer
+      console.log(`Scheduler: rate limited, will retry in ${waitMinutes}min`)
+      setTimeout(() => runWithRetry(attempt + 1), waitMinutes * 60_000)
+    }
+  }
+
+  setTimeout(() => runWithRetry(), 5000)
   console.log("Scheduler: initial sync scheduled in 5s")
 }
 
