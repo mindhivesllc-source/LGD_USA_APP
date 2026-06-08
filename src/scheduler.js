@@ -7,6 +7,35 @@ import { sendAlert } from "./notify.js"
 
 let syncCount = 0
 
+/**
+ * Check the database for a recent rate-limited sync run that was started
+ * by ANOTHER process (scheduler vs Remix app). In-memory syncState doesn't
+ * cross process boundaries, so we need a DB-backed check to prevent
+ * the Remix process from hammering the supplier API right after the
+ * scheduler process just got rate-limited.
+ */
+async function checkDbCooldown(db) {
+  try {
+    const recent = await db.syncRun.findFirst({
+      where: { status: "failed" },
+      orderBy: { startedAt: "desc" },
+    })
+    if (!recent || !recent.error) return false
+
+    const isRateLimit = recent.error.includes("Rate limited") || recent.error.includes("SUPPLIER_RATE_LIMITED")
+    if (!isRateLimit) return false
+
+    const elapsed = Date.now() - new Date(recent.startedAt).getTime()
+    const COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes
+    if (elapsed < COOLDOWN_MS) {
+      const waitMin = Math.ceil((COOLDOWN_MS - elapsed) / 60000)
+      console.log(`[Sync] DB cooldown active: rate-limited ${Math.round(elapsed/1000)}s ago, wait ~${waitMin}min`)
+      return true
+    }
+  } catch (_) { /* DB might not be ready — proceed without DB guard */ }
+  return false
+}
+
 async function runSync() {
   if (state.isRunning) return
 
@@ -16,14 +45,22 @@ async function runSync() {
     return
   }
 
+  // DB-backed cooldown check — guards against the Remix process not seeing
+  // the scheduler process's in-memory cooldown (they run as separate Node processes).
+  const { PrismaClient } = await import("@prisma/client")
+  const db = new PrismaClient()
+
+  if (await checkDbCooldown(db)) {
+    console.log("[Sync] Skipped: DB shows recent rate-limit from another process")
+    await db.$disconnect()
+    return
+  }
+
   updateState({ isRunning: true })
   resetStop()
   const startTime = Date.now()
   syncCount++
   console.log(`[Sync #${syncCount}] Starting...`)
-
-  const { PrismaClient } = await import("@prisma/client")
-  const db = new PrismaClient()
 
   const syncRun = await db.syncRun.create({
     data: {
