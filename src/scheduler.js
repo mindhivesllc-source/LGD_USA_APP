@@ -216,4 +216,4 @@ if (!started) {
   startScheduler()
 }
 
-export { runSync, startScheduler }
+export { runSync }
