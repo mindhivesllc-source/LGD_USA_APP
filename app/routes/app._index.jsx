@@ -58,6 +58,10 @@ export const loader = async ({ request }) => {
     console.error("Failed to fetch category counts:", e)
   }
 
+  const intervalMin = parseInt(process.env.SYNC_INTERVAL_MINUTES, 10) || 0
+  const intervalHr = parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6
+  const syncInterval = intervalMin > 0 ? `${intervalMin}min` : `${intervalHr}h`
+
   return {
     lastSync: latestSync
       ? {
@@ -73,7 +77,7 @@ export const loader = async ({ request }) => {
         }
       : null,
     isRunning,
-    syncInterval: parseInt(process.env.SYNC_INTERVAL_HOURS || "6", 10),
+    syncInterval,
     categoryCounts,
   }
 }
@@ -119,15 +123,50 @@ export default function Dashboard() {
   const { lastSync, isRunning, syncInterval, categoryCounts } = useLoaderData()
   const fetcher = useFetcher()
   const stopFetcher = useFetcher()
+  const cooldownFetcher = useFetcher()
   const isLoading = fetcher.state === "submitting"
   const isSyncing = isRunning || isLoading
   const [showToast, setShowToast] = useState(false)
   const [showForce, setShowForce] = useState(false)
+  const [cooldownSec, setCooldownSec] = useState(0)
   const revalidator = useRevalidator()
 
   const lastFailed = lastSync?.status === "failed"
   const isRateLimited = lastFailed && (lastSync?.error || "").includes("Rate limited")
-  const showForceButton = isRateLimited && !isSyncing
+  const isCooldown = cooldownSec > 0
+  const showForceButton = (isRateLimited || isCooldown) && !isSyncing
+
+  // Poll cooldown status
+  useEffect(() => {
+    const check = () => {
+      cooldownFetcher.load("/api/sync")
+    }
+    check()
+    const interval = setInterval(check, 1000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Parse cooldown from fetcher data
+  useEffect(() => {
+    if (cooldownFetcher.data?.cooldownActive && cooldownFetcher.data?.cooldownRemainingMin > 0) {
+      setCooldownSec(cooldownFetcher.data.cooldownRemainingMin * 60)
+    } else if (cooldownFetcher.data?.cooldownActive === false) {
+      setCooldownSec(0)
+    }
+  }, [cooldownFetcher.data])
+
+  // Countdown timer
+  useEffect(() => {
+    if (cooldownSec <= 0) return
+    const timer = setInterval(() => {
+      setCooldownSec(prev => {
+        if (prev <= 1) return 0
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [cooldownSec > 0])
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -180,6 +219,19 @@ export default function Dashboard() {
 
         <BlockStack gap="500">
           <div aria-live="polite">
+            {isCooldown && (
+              <Banner tone="warning">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodyMd" fontWeight="bold">
+                    Supplier rate limit — cooldown active
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    Next sync available in {Math.floor(cooldownSec / 60)}:{String(cooldownSec % 60).padStart(2, '0')}
+                  </Text>
+                </BlockStack>
+              </Banner>
+            )}
+
             {lastSync?.error && (
               <Banner tone="critical">
                 Last sync failed: {lastSync.error}

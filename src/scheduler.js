@@ -165,9 +165,16 @@ async function runSync() {
 }
 
 export function startScheduler() {
-  const hours = parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6
-  const cronExpression = `0 */${hours} * * *`
-  console.log(`Scheduler: sync every ${hours} hours (${cronExpression})`)
+  // Support both minute-level (SYNC_INTERVAL_MINUTES) and hour-level (SYNC_INTERVAL_HOURS)
+  const intervalMin = parseInt(process.env.SYNC_INTERVAL_MINUTES, 10) || 0
+  let cronExpression
+  if (intervalMin > 0) {
+    cronExpression = `*/${intervalMin} * * * *`
+  } else {
+    const hours = parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6
+    cronExpression = `0 */${hours} * * *`
+  }
+  console.log(`Scheduler: sync every ${intervalMin > 0 ? intervalMin + 'min' : (parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6) + 'h'} (${cronExpression})`)
 
   cron.schedule(cronExpression, runSync)
   console.log("Scheduler: cron job registered")

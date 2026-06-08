@@ -5,7 +5,12 @@ import { runSync } from "../../src/scheduler.js"
 
 export const loader = async ({ request }) => {
   await authenticate.admin(request)
-  return json(getState())
+  const state = getState()
+  return json({
+    ...state,
+    cooldownActive: isCooldownActive(),
+    cooldownRemainingMin: getCooldownRemaining(),
+  })
 }
 
 export const action = async ({ request }) => {
