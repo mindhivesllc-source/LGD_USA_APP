@@ -52,6 +52,8 @@ async function runSync() {
 
   if (await checkDbCooldown(db)) {
     console.log("[Sync] Skipped: DB shows recent rate-limit from another process")
+    updateState({ lastError: "supplier_rate_limited" })
+    setCooldown(15)
     await db.$disconnect()
     return
   }
