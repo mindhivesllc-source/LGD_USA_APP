@@ -207,10 +207,13 @@ export function startScheduler() {
   console.log("Scheduler: initial sync scheduled in 5s")
 }
 
-// Only start the cron scheduler when this module is the main entry point
-// (node src/scheduler.js), not when imported by the Remix server
-if (process.argv[1]?.includes("scheduler.js")) {
+// Start the scheduler automatically on import — the Remix server imports this
+// module at startup so the cron and initial sync run in-process (no & needed).
+// Guard to prevent double-start when imported from multiple modules.
+let started = false
+if (!started) {
+  started = true
   startScheduler()
 }
 
-export { runSync }
+export { runSync, startScheduler }

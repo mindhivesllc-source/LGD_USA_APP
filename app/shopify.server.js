@@ -7,6 +7,10 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+// Start the sync scheduler in-process — avoids the & background-process
+// pattern where Railway loses stdout and the scheduler can silently die.
+import "../src/scheduler.js";
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
