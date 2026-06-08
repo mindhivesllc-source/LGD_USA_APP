@@ -329,9 +329,10 @@ async function submitOne(item, synchronous = true) {
     const op = await execProductSet(item, false)
     return op?.id || null
   } catch (err) {
+    // Don't log individual errors — the caller batches them into a summary
+    // to avoid hitting Railway's 500 logs/sec rate limit with 1866 identical messages.
     const sku = getItemSku(item)
-    console.error(`[Sync] Submit error for SKU ${sku}:`, err.message)
-    return null
+    return { __error: true, sku, message: err.message }
   }
 }
 
@@ -371,17 +372,38 @@ export async function pushToShopifyBatch(
     let pushed = 0
     let failed = 0
     let i = 0
+    const syncErrors = new Map()
     console.log(`[Sync] Submitting ${valid.length} products synchronously...`)
     for (const item of valid) {
       i++
       if (shouldStop()) throw new SyncStopError()
       const result = await submitOne(item, true)
-      if (result) pushed++
-      else failed++
-      if (i % 5 === 0) {
-        console.log(`[Sync] Progress: ${i}/${valid.length} submitted`)
+      if (result?.__error) {
+        failed++
+        const msg = result.message
+        syncErrors.set(msg, (syncErrors.get(msg) || 0) + 1)
+        // Abort early if first 10 all fail (auth issue)
+        if (i >= 10 && pushed === 0) {
+          const [[topMsg, count]] = [...syncErrors].sort((a, b) => b[1] - a[1])
+          throw new Error(
+            `All ${i} product submissions failed. Top error (${count}x): ${topMsg}`
+          )
+        }
+      } else if (result) {
+        pushed++
+      } else {
+        failed++
+      }
+      if (i % 10 === 0) {
+        console.log(`[Sync] Progress: ${i}/${valid.length} submitted (${pushed} ok, ${failed} fail)`)
         if (onProgress)
           onProgress({ pushed, failed, skipped: skipped.length, phase: "sync" })
+      }
+    }
+    if (syncErrors.size > 0) {
+      console.error(`[Sync] Sync errors (${failed}/${valid.length} failed):`)
+      for (const [msg, count] of [...syncErrors].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+        console.error(`  ${count}x: ${msg}`)
       }
     }
     return { pushed, skipped: skipped.length, failed }
@@ -390,17 +412,35 @@ export async function pushToShopifyBatch(
   console.log(`[Sync] Submitting ${valid.length} products in async mode...`)
 
   const operations = []
+  const submitErrors = new Map() // dedupe error messages to avoid log spam
   let submitFailed = 0
   let i = 0
   for (const item of valid) {
     i++
     if (shouldStop()) throw new SyncStopError()
     const opId = await submitOne(item, false)
-    if (opId) {
+    if (opId?.__error) {
+      submitFailed++
+      const msg = opId.message
+      if (submitErrors.has(msg)) {
+        submitErrors.set(msg, submitErrors.get(msg) + 1)
+      } else {
+        submitErrors.set(msg, 1)
+      }
+    } else if (opId) {
       operations.push(opId)
     } else {
       submitFailed++
     }
+
+    // Abort early if EVERY submission is failing — typically means no auth session
+    if (i >= 10 && operations.length === 0) {
+      const [[topMsg, count]] = [...submitErrors].sort((a, b) => b[1] - a[1])
+      throw new Error(
+        `All ${i} product submissions failed. Top error (${count}x): ${topMsg}`
+      )
+    }
+
     if (i % 10 === 0) {
       console.log(
         `[Sync] Submitted ${i}/${valid.length}, got ${operations.length} operation IDs so far`
@@ -412,6 +452,14 @@ export async function pushToShopifyBatch(
           skipped: skipped.length,
           phase: "submitting",
         })
+    }
+  }
+
+  // Log deduplicated error summary
+  if (submitErrors.size > 0) {
+    console.error(`[Sync] Submission errors (${submitFailed}/${valid.length} failed):`)
+    for (const [msg, count] of [...submitErrors].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+      console.error(`  ${count}x: ${msg}`)
     }
   }
 
@@ -427,6 +475,7 @@ export async function pushToShopifyBatch(
   }
 
   let chunkIndex = 0
+  const pollErrors = new Map()
   for (const chunk of chunks) {
     chunkIndex++
     if (shouldStop()) throw new SyncStopError()
@@ -436,7 +485,8 @@ export async function pushToShopifyBatch(
           await pollProductSetOperation(opId, maxWaitSec)
           stats.completed++
         } catch (err) {
-          console.error(`[Sync] Operation ${opId} failed:`, err.message)
+          const msg = err.message
+          pollErrors.set(msg, (pollErrors.get(msg) || 0) + 1)
           stats.failed++
         } finally {
           stats.pollCount++
@@ -458,6 +508,13 @@ export async function pushToShopifyBatch(
     console.log(
       `[Sync] Chunk ${chunkIndex}/${chunks.length} done: ${stats.completed} succeeded, ${stats.failed} failed`
     )
+  }
+
+  if (pollErrors.size > 0) {
+    console.error(`[Sync] Poll errors (${stats.failed} operations):`)
+    for (const [msg, count] of [...pollErrors].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+      console.error(`  ${count}x: ${msg}`)
+    }
   }
 
   console.log(
