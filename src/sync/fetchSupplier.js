@@ -4,11 +4,15 @@ const db = new PrismaClient()
 const SUPPLIER_API_BASE = process.env.SUPPLIER_API_BASE || "https://lgdusallc.com/developer-api"
 
 async function getApiKey() {
+  // Check database first (set via app settings UI)
   const setting = await db.setting.findUnique({ where: { key: "SUPPLIER_API_KEY" } })
-  if (!setting?.value) {
-    throw new Error("SUPPLIER_API_KEY not found in settings. Please configure in app settings.")
-  }
-  return setting.value
+  if (setting?.value) return setting.value
+
+  // Fall back to environment variable (set via Railway — survives all deploys)
+  const envKey = process.env.SUPPLIER_API_KEY
+  if (envKey) return envKey
+
+  throw new Error("SUPPLIER_API_KEY not found in settings or environment. Configure in app settings or set SUPPLIER_API_KEY env var on Railway.")
 }
 
 async function fetchFromSupplier(page = 1) {
