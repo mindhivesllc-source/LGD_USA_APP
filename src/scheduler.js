@@ -3,6 +3,7 @@ import { fetchAllJewelry } from "./sync/fetchSupplier.js"
 import { mapToShopifyProduct } from "./sync/mapFields.js"
 import { pushToShopifyBatch } from "./sync/pushToShopify.js"
 import { state, updateState, setCooldown, clearCooldown, resetStop, isCooldownActive } from "./syncState.js"
+import { sendAlert } from "./notify.js"
 
 let syncCount = 0
 
@@ -34,6 +35,7 @@ async function runSync() {
   try {
     const items = await fetchAllJewelry()
     console.log(`[Sync #${syncCount}] Fetched ${items.length} products from supplier`)
+    sendAlert("started", { itemCount: items.length })
 
     let pushed = 0
     let skipped = 0
@@ -84,8 +86,10 @@ async function runSync() {
     if (allFailed) {
       console.error(`[Sync #${syncCount}] All ${failed} pushes failed in ${duration}s`)
       updateState({ lastError: syncError })
+      sendAlert("failed", { error: syncError, pushed, failed, skipped, duration: `${duration}s` })
     } else {
       console.log(`[Sync #${syncCount}] Complete! ${pushed}/${items.length} products in ${duration}s`)
+      sendAlert("completed", { pushed, failed, skipped, duration: `${duration}s` })
     }
     clearCooldown()
   } catch (err) {
@@ -100,15 +104,18 @@ async function runSync() {
     })
     if (isStopped) {
       console.log(`[Sync #${syncCount}] Stopped by user`)
+      sendAlert("stopped", { reason: "User requested stop" })
       clearCooldown()
     } else {
       console.error(`[Sync #${syncCount}] Failed:`, err.message)
       if (err.code === "SUPPLIER_RATE_LIMITED" || err.message?.includes("Rate limited")) {
         setCooldown(15)
         updateState({ lastError: "supplier_rate_limited" })
+        sendAlert("rate_limited", { cooldown: "15", retryIn: "16" })
       } else {
         clearCooldown()
         updateState({ lastError: err.message })
+        sendAlert("failed", { error: err.message })
       }
     }
   } finally {
