@@ -1,97 +1,132 @@
-import { PrismaClient } from "@prisma/client"
 import { shouldStop } from "../syncState.js"
 
-const db = new PrismaClient()
-const SHOPIFY_STORE = process.env.SHOPIFY_STORE
-const API_VERSION = "2025-04"
 const POLL_CONCURRENCY = 20
-const FETCH_TIMEOUT_MS = 30000
-
-let cachedToken = null
-let cachedTokenExpiry = 0
-let cachedLocationId = null
 
 const MAX_AVAILABLE = 1000
 const MIN_AVAILABLE_THRESHOLD = MAX_AVAILABLE * 0.5
 const LOW_THRESHOLD = 200
 
+// Admin context cache — refreshed periodically so we don't re-auth on every request
+let cachedAdmin = null
+let cachedAdminExpiry = 0
+const ADMIN_CACHE_MS = 10 * 60 * 1000 // 10 minutes
+
+let cachedLocationId = null
+
 class SyncStopError extends Error {
   constructor() { super("Sync stopped by user"); this.name = "SyncStopError" }
 }
 
-async function getAccessToken() {
+/**
+ * Get a Shopify Admin API context via the library's unauthenticated.admin().
+ * This uses PrismaSessionStorage to find valid sessions and handles token
+ * rotation — unlike the previous hand-rolled DB query which returned stale tokens.
+ */
+async function getAdmin() {
   const now = Date.now()
-  if (cachedToken && now < cachedTokenExpiry) {
-    return cachedToken
+  if (cachedAdmin && now < cachedAdminExpiry) {
+    return cachedAdmin
   }
 
-  const session = await db.session.findFirst({
-    where: { shop: { contains: SHOPIFY_STORE.split(".")[0] } },
-    orderBy: { expires: "desc" },
-  })
-
-  if (!session) {
-    throw new Error(`No OAuth session found for ${SHOPIFY_STORE}`)
+  const shop = process.env.SHOPIFY_STORE
+  if (!shop) {
+    throw new Error("SHOPIFY_STORE env var not set")
   }
 
-  cachedToken = session.accessToken
-  cachedTokenExpiry = session.expires ? new Date(session.expires).getTime() - 60000 : now + 3600000
-  return cachedToken
+  // Dynamic import avoids circular dependency issues at module load time
+  const { unauthenticated } = await import("../../app/shopify.server.js")
+  const ctx = await unauthenticated.admin(shop)
+
+  if (!ctx || !ctx.admin) {
+    throw new Error(
+      `No admin context for ${shop} — app may not be installed. Reinstall the app from the Shopify Admin.`
+    )
+  }
+
+  cachedAdmin = ctx.admin
+  cachedAdminExpiry = now + ADMIN_CACHE_MS
+  console.log("[Auth] Refreshed admin context for Shopify API")
+  return ctx.admin
 }
 
-function graphqlUrl() {
-  return `https://${SHOPIFY_STORE}/admin/api/${API_VERSION}/graphql.json`
+/** Clear the cached admin context to force re-auth on the next request. */
+function clearAdminCache() {
+  cachedAdmin = null
+  cachedAdminExpiry = 0
 }
 
-async function graphqlRequest(query, variables) {
+/**
+ * Make a GraphQL request to the Shopify Admin API.
+ * Uses the library's admin.graphql() for proper auth and token management.
+ * Handles 401 (stale token), 429 (rate limit), and throttle awareness with retries.
+ */
+async function graphqlRequest(query, variables = {}) {
   const maxRetries = 5
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const token = await getAccessToken()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    const admin = await getAdmin()
 
     let res
     try {
-      res = await fetch(graphqlUrl(), {
-        method: "POST",
-        headers: {
-          "X-Shopify-Access-Token": token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query, variables }),
-        signal: controller.signal,
-      })
+      res = await admin.graphql(query, { variables })
     } catch (err) {
-      clearTimeout(timeoutId)
-      if (err.name === "AbortError") {
-        console.warn(`[GraphQL] Request timed out after ${FETCH_TIMEOUT_MS}ms (attempt ${attempt}/${maxRetries})`)
+      console.warn(
+        `[GraphQL] Request error (attempt ${attempt}/${maxRetries}):`,
+        err.message
+      )
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 2000))
         continue
       }
       throw err
     }
-    clearTimeout(timeoutId)
 
+    // 401 means the access token is invalid/stale — clear cache so getAdmin()
+    // reloads the session and picks up any rotated token
+    if (res.status === 401) {
+      console.warn(
+        `[GraphQL] 401 Unauthorized — clearing admin cache (attempt ${attempt}/${maxRetries})`
+      )
+      clearAdminCache()
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 5000))
+        continue
+      }
+    }
+
+    // 429 — Shopify rate limit, honor Retry-After header
     if (res.status === 429) {
-      const retryAfter = parseInt(res.headers.get("Retry-After") || String(Math.pow(2, attempt)), 10)
-      console.warn(`[GraphQL] Rate limited (429), retrying after ${retryAfter}s (attempt ${attempt}/${maxRetries})`)
+      const retryAfter = parseInt(
+        res.headers.get("Retry-After") || String(Math.pow(2, attempt)),
+        10
+      )
+      console.warn(
+        `[GraphQL] Rate limited (429), retrying after ${retryAfter}s (attempt ${attempt}/${maxRetries})`
+      )
       await new Promise((r) => setTimeout(r, retryAfter * 1000))
       continue
     }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "")
-      throw new Error(`GraphQL HTTP error: ${res.status} ${res.statusText} - ${body.slice(0, 200)}`)
+      throw new Error(
+        `GraphQL HTTP error: ${res.status} ${res.statusText} - ${body.slice(0, 200)}`
+      )
     }
 
     const result = await res.json()
 
+    // Distinguish fatal GraphQL errors from throttling (which is handled below)
     if (result.errors) {
-      const fatal = result.errors.filter((e) => !(e.extensions?.code === "THROTTLED"))
+      const fatal = result.errors.filter(
+        (e) => !(e.extensions?.code === "THROTTLED")
+      )
       if (fatal.length > 0) {
         throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`)
       }
     }
 
+    // Respect Shopify's cost throttle to avoid 429s
     const throttle = result.extensions?.cost?.throttleStatus
     if (throttle) {
       console.log(
@@ -105,6 +140,7 @@ async function graphqlRequest(query, variables) {
 
     return result
   }
+
   throw new Error("Max retries exceeded for Shopify GraphQL")
 }
 
@@ -148,7 +184,6 @@ function buildProductSetInput(mappedData) {
     status,
     options,
     variants,
-    images,
     metafields,
   } = mappedData
 
@@ -306,7 +341,10 @@ export async function pushToShopify(mappedData) {
   return execProductSet(mappedData, true)
 }
 
-export async function pushToShopifyBatch(mappedItems, { asyncThreshold = 50, maxWaitSec = 300, onProgress } = {}) {
+export async function pushToShopifyBatch(
+  mappedItems,
+  { asyncThreshold = 50, maxWaitSec = 300, onProgress } = {}
+) {
   const locationId = await getLocationId()
 
   const valid = []
@@ -342,7 +380,8 @@ export async function pushToShopifyBatch(mappedItems, { asyncThreshold = 50, max
       else failed++
       if (i % 5 === 0) {
         console.log(`[Sync] Progress: ${i}/${valid.length} submitted`)
-        if (onProgress) onProgress({ pushed, failed, skipped: skipped.length, phase: "sync" })
+        if (onProgress)
+          onProgress({ pushed, failed, skipped: skipped.length, phase: "sync" })
       }
     }
     return { pushed, skipped: skipped.length, failed }
@@ -363,12 +402,22 @@ export async function pushToShopifyBatch(mappedItems, { asyncThreshold = 50, max
       submitFailed++
     }
     if (i % 10 === 0) {
-      console.log(`[Sync] Submitted ${i}/${valid.length}, got ${operations.length} operation IDs so far`)
-      if (onProgress) onProgress({ pushed: operations.length, failed: submitFailed, skipped: skipped.length, phase: "submitting" })
+      console.log(
+        `[Sync] Submitted ${i}/${valid.length}, got ${operations.length} operation IDs so far`
+      )
+      if (onProgress)
+        onProgress({
+          pushed: operations.length,
+          failed: submitFailed,
+          skipped: skipped.length,
+          phase: "submitting",
+        })
     }
   }
 
-  console.log(`[Sync] Submitted ${operations.length} async operations (${submitFailed} failed submission), polling...`)
+  console.log(
+    `[Sync] Submitted ${operations.length} async operations (${submitFailed} failed submission), polling...`
+  )
 
   const stats = { completed: 0, failed: submitFailed, pollCount: 0 }
 
@@ -392,15 +441,27 @@ export async function pushToShopifyBatch(mappedItems, { asyncThreshold = 50, max
         } finally {
           stats.pollCount++
           if (stats.pollCount % 50 === 0) {
-            console.log(`[Sync] Polled ${stats.pollCount}/${operations.length} (${stats.completed} done)`)
-            if (onProgress) onProgress({ pushed: stats.completed, failed: stats.failed, skipped: skipped.length, phase: "polling" })
+            console.log(
+              `[Sync] Polled ${stats.pollCount}/${operations.length} (${stats.completed} done)`
+            )
+            if (onProgress)
+              onProgress({
+                pushed: stats.completed,
+                failed: stats.failed,
+                skipped: skipped.length,
+                phase: "polling",
+              })
           }
         }
       })
     )
-    console.log(`[Sync] Chunk ${chunkIndex}/${chunks.length} done: ${stats.completed} succeeded, ${stats.failed} failed`)
+    console.log(
+      `[Sync] Chunk ${chunkIndex}/${chunks.length} done: ${stats.completed} succeeded, ${stats.failed} failed`
+    )
   }
 
-  console.log(`[Sync] Async batch complete: ${stats.completed} succeeded, ${stats.failed} failed, ${skipped.length} skipped`)
+  console.log(
+    `[Sync] Async batch complete: ${stats.completed} succeeded, ${stats.failed} failed, ${skipped.length} skipped`
+  )
   return { pushed: stats.completed, skipped: skipped.length, failed: stats.failed }
 }

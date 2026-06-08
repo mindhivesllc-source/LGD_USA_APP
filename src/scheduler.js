@@ -61,18 +61,32 @@ async function runSync() {
 
     console.log(`[Sync #${syncCount}] Final: ${pushed} pushed, ${failed} failed, ${skipped} skipped`)
 
+    // If all products failed to push, treat it as a failed sync so the dashboard
+    // shows the error instead of claiming "completed" with 0 products.
+    const allFailed = pushed === 0 && failed > 0
+    const syncStatus = allFailed ? "failed" : "completed"
+    const syncError = allFailed
+      ? `All ${failed} products failed to push. Check Shopify access token and app installation.`
+      : null
+
     await db.syncRun.update({
       where: { id: syncRun.id },
       data: {
-        status: "completed",
+        status: syncStatus,
         completedAt: new Date(),
         totalFetched: items.length,
         totalPushed: pushed,
+        error: syncError,
       },
     })
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1)
-    console.log(`[Sync #${syncCount}] Complete! ${pushed}/${items.length} products in ${duration}s`)
+    if (allFailed) {
+      console.error(`[Sync #${syncCount}] All ${failed} pushes failed in ${duration}s`)
+      updateState({ lastError: syncError })
+    } else {
+      console.log(`[Sync #${syncCount}] Complete! ${pushed}/${items.length} products in ${duration}s`)
+    }
     clearCooldown()
   } catch (err) {
     const isStopped = err.name === "SyncStopError"
