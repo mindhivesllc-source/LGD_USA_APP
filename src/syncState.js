@@ -44,6 +44,12 @@ export function getCooldownRemaining(cooldownMinutes = 15) {
   return Math.max(0, Math.ceil(remaining / 1000 / 60))
 }
 
+export function getCooldownRemainingSeconds() {
+  if (!state.cooldownUntil) return 0
+  const remaining = new Date(state.cooldownUntil).getTime() - Date.now()
+  return Math.max(0, Math.ceil(remaining / 1000))
+}
+
 export function setCooldown(minutes = 15) {
   state.cooldownUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString()
 }

@@ -244,6 +244,22 @@ const POLL_QUERY = `
   }
 `
 
+const PRODUCT_COUNT_QUERY = `
+  query countProducts($query: String!, $after: String) {
+    products(first: 250, after: $after, query: $query) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+        }
+      }
+    }
+  }
+`
+
 function injectLocation(mappedData, locationId) {
   if (!locationId) return
 
@@ -336,6 +352,24 @@ async function submitOne(item, synchronous = true) {
   }
 }
 
+export async function countShopifyProducts(query) {
+  let after = null
+  let count = 0
+
+  for (;;) {
+    const result = await graphqlRequest(PRODUCT_COUNT_QUERY, { query, after })
+    const connection = result.data?.products
+    const edges = connection?.edges || []
+    count += edges.length
+
+    if (!connection?.pageInfo?.hasNextPage) {
+      return count
+    }
+
+    after = connection.pageInfo.endCursor
+  }
+}
+
 export async function pushToShopify(mappedData) {
   const locationId = await getLocationId()
   injectLocation(mappedData, locationId)
@@ -360,7 +394,9 @@ export async function pushToShopifyBatch(
   }
 
   if (skipped.length > 0) {
-    console.warn(`[Sync] Skipped ${skipped.length} items with missing SKU/title`)
+    throw new Error(
+      `Supplier payload contained ${skipped.length} item(s) with missing SKU/title`
+    )
   }
 
   if (valid.length === 0) {

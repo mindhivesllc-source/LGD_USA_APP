@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react"
 import { redirect } from "@remix-run/node"
 import {
@@ -37,8 +37,8 @@ export const loader = async ({ request }) => {
   let categoryCounts = {}
   try {
     const query = `#graphql
-      query {
-        products(first: 250, query: "vendor:LGD USA") {
+      query ($search: String!) {
+        products(first: 250, query: $search) {
           edges {
             node {
               productType
@@ -47,7 +47,9 @@ export const loader = async ({ request }) => {
         }
       }
     `
-    const response = await admin.graphql(query)
+    const response = await admin.graphql(query, {
+      variables: { search: 'vendor:"LGD USA" status:active' },
+    })
     const result = await response.json()
     const products = result.data?.products?.edges || []
     for (const edge of products) {
@@ -128,11 +130,16 @@ export default function Dashboard() {
   const isSyncing = isRunning || isLoading
   const [showToast, setShowToast] = useState(false)
   const [showForce, setShowForce] = useState(false)
-  const [cooldownSec, setCooldownSec] = useState(0)
+  const [cooldownUntil, setCooldownUntil] = useState(null)
+  const [now, setNow] = useState(Date.now())
   const revalidator = useRevalidator()
+  const lastCooldownUntilRef = useRef(null)
 
   const lastFailed = lastSync?.status === "failed"
   const isRateLimited = lastFailed && (lastSync?.error || "").includes("Rate limited")
+  const cooldownSec = cooldownUntil
+    ? Math.max(0, Math.ceil((new Date(cooldownUntil).getTime() - now) / 1000))
+    : 0
   const isCooldown = cooldownSec > 0
   const showForceButton = (isRateLimited || isCooldown) && !isSyncing
 
@@ -142,31 +149,32 @@ export default function Dashboard() {
       cooldownFetcher.load("/api/sync")
     }
     check()
-    const interval = setInterval(check, 1000)
+    const interval = setInterval(check, 10000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Parse cooldown from fetcher data
   useEffect(() => {
-    if (cooldownFetcher.data?.cooldownActive && cooldownFetcher.data?.cooldownRemainingMin > 0) {
-      setCooldownSec(cooldownFetcher.data.cooldownRemainingMin * 60)
+    const cooldownUntil = cooldownFetcher.data?.cooldownUntil || null
+    if (cooldownFetcher.data?.cooldownActive && cooldownUntil) {
+      if (lastCooldownUntilRef.current !== cooldownUntil) {
+        lastCooldownUntilRef.current = cooldownUntil
+        setCooldownUntil(cooldownUntil)
+      }
     } else if (cooldownFetcher.data?.cooldownActive === false) {
-      setCooldownSec(0)
+      lastCooldownUntilRef.current = null
+      setCooldownUntil(null)
     }
   }, [cooldownFetcher.data])
 
-  // Countdown timer
+  // Local clock tick so the countdown stays accurate without resetting from polling.
   useEffect(() => {
-    if (cooldownSec <= 0) return
     const timer = setInterval(() => {
-      setCooldownSec(prev => {
-        if (prev <= 1) return 0
-        return prev - 1
-      })
+      setNow(Date.now())
     }, 1000)
     return () => clearInterval(timer)
-  }, [cooldownSec > 0])
+  }, [])
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -187,21 +195,24 @@ export default function Dashboard() {
       <Page title="LGD Jewelry Sync">
         <TitleBar title="Dashboard">
           <InlineStack gap="200">
-            {isRunning ? (
-              <stopFetcher.Form method="POST" action="/api/sync">
-                <input type="hidden" name="intent" value="stop" />
-                <Button variant="primary" tone="critical" submit loading={stopFetcher.state === "submitting"}>
-                  Stop Sync
-                </Button>
-              </stopFetcher.Form>
-            ) : (
-              <fetcher.Form method="post">
-                <input type="hidden" name="force" value={showForce ? "true" : "false"} />
-                <Button variant="primary" submit disabled={isSyncing}>
-                  {isSyncing ? "Syncing..." : "Sync Now"}
-                </Button>
-              </fetcher.Form>
-            )}
+            <fetcher.Form method="post" action="/api/sync">
+              <input type="hidden" name="force" value={showForce ? "true" : "false"} />
+              <Button variant="primary" submit disabled={isRunning || isLoading}>
+                {isSyncing ? "Syncing..." : "Start Sync"}
+              </Button>
+            </fetcher.Form>
+            <stopFetcher.Form method="POST" action="/api/sync">
+              <input type="hidden" name="intent" value="stop" />
+              <Button
+                variant="secondary"
+                tone="critical"
+                submit
+                loading={stopFetcher.state === "submitting"}
+                disabled={!isRunning}
+              >
+                Stop Sync
+              </Button>
+            </stopFetcher.Form>
             {showForceButton && (
               <Button
                 variant="monochromePlain"
@@ -296,7 +307,7 @@ export default function Dashboard() {
                           <>
                             <Badge tone="new">Never synced</Badge>
                             <Text as="p" variant="bodySm" tone="subdued">
-                              Click Sync Now to start
+                              Click Start Sync to start
                             </Text>
                           </>
                         )}
@@ -368,7 +379,7 @@ export default function Dashboard() {
                       1. Sync
                     </Text>
                     <Text as="p" variant="bodyMd">
-                      Click Sync Now to pull inventory from the LGD supplier API.
+                      Click Start Sync to pull inventory from the LGD supplier API.
                     </Text>
                   </BlockStack>
                 </Box>

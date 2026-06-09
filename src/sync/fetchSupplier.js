@@ -15,6 +15,11 @@ async function getApiKey() {
   throw new Error("SUPPLIER_API_KEY not found in settings or environment. Configure in app settings or set SUPPLIER_API_KEY env var on Railway.")
 }
 
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
 async function fetchFromSupplier(page = 1) {
   const apiKey = await getApiKey()
   const url = `${SUPPLIER_API_BASE}/jewelry?type=all&page=${page}&key=${apiKey}`
@@ -35,21 +40,50 @@ async function fetchFromSupplier(page = 1) {
 
 export async function fetchAllJewelry() {
   const firstPage = await fetchFromSupplier(1)
-
-  // Check for API-level error messages regardless of HTTP status
   const supplierMsg = firstPage.message || firstPage.Message || ""
+
   if (supplierMsg && !Array.isArray(firstPage.data) && !Array.isArray(firstPage.Stock)) {
     console.error("Supplier API error:", JSON.stringify(firstPage).slice(0, 500))
     throw new Error(`Supplier error: ${supplierMsg}`)
   }
 
-  const items = firstPage.data || firstPage.Stock || []
-
-  if (!Array.isArray(items) || items.length === 0) {
+  const firstItems = firstPage.data || firstPage.Stock || []
+  if (!Array.isArray(firstItems) || firstItems.length === 0) {
     const msg = supplierMsg || "No items returned"
     console.error("Supplier API response:", JSON.stringify(firstPage).slice(0, 500))
     throw new Error(`Supplier returned empty: ${msg}`)
   }
 
-  return items
+  const totalPages = parsePositiveInt(
+    firstPage.total_page ?? firstPage.total_pages ?? firstPage.totalPages,
+    1
+  )
+  const reportedTotalResults = firstPage.total_results ?? firstPage.totalResults
+  const totalResults = parsePositiveInt(reportedTotalResults, firstItems.length)
+  const items = [...firstItems]
+
+  for (let page = 2; page <= totalPages; page++) {
+    const pageData = await fetchFromSupplier(page)
+    const pageItems = pageData.data || pageData.Stock || []
+    if (!Array.isArray(pageItems)) {
+      throw new Error(`Supplier page ${page} returned invalid item payload`)
+    }
+    items.push(...pageItems)
+  }
+
+  if (reportedTotalResults && items.length !== totalResults) {
+    throw new Error(
+      `Supplier reported ${totalResults} jewelry items, but assembled ${items.length} from ${totalPages} page(s)`
+    )
+  } else {
+    console.log(
+      `[Supplier] Fetched ${items.length} jewelry items across ${totalPages} page(s)`
+    )
+  }
+
+  return {
+    items,
+    totalPages,
+    totalResults,
+  }
 }

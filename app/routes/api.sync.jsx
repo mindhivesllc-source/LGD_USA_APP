@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node"
 import { authenticate } from "../shopify.server"
-import { getState, updateState, isCooldownActive, getCooldownRemaining, setCooldown, requestStop, resetStop } from "../../src/syncState.js"
+import { getState, isCooldownActive, getCooldownRemaining, getCooldownRemainingSeconds, requestStop, resetStop } from "../../src/syncState.js"
 import { runSync } from "../../src/scheduler.js"
 
 export const loader = async ({ request }) => {
@@ -10,6 +10,7 @@ export const loader = async ({ request }) => {
     ...state,
     cooldownActive: isCooldownActive(),
     cooldownRemainingMin: getCooldownRemaining(),
+    cooldownRemainingSec: getCooldownRemainingSeconds(),
   })
 }
 
@@ -44,11 +45,8 @@ export const action = async ({ request }) => {
   }
 
   if (force) {
-    updateState({ cooldownUntil: null, lastError: null })
     resetStop()
   }
-
-  setCooldown(1)
 
   runSync().catch((err) => console.error("Manual sync error:", err))
 
